@@ -1,14 +1,14 @@
-
 package com.netflix.MovieAPI.service;
 
+import com.netflix.MovieAPI.exceptions.EmptyFileException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
@@ -17,13 +17,14 @@ import java.util.UUID;
 public class FileServiceImpl implements FileService {
 
     @Override
-    public String uploadFile(String path, MultipartFile file) throws IOException {
+    public String uploadFile(String path, MultipartFile file) throws IOException, EmptyFileException {
 
-        if (file.isEmpty()) {
-            throw new IOException("Cannot upload an empty file");
+        if (file == null || file.isEmpty()) {
+            throw new EmptyFileException(
+                    "File is empty! Please send another file!"
+            );
         }
 
-        // Generate a unique filename to avoid collisions
         String originalFilename = file.getOriginalFilename();
         String extension = "";
 
@@ -41,12 +42,11 @@ public class FileServiceImpl implements FileService {
 
         String fileName = UUID.randomUUID() + extension;
 
-        // Create the upload directory if it doesn't exist
         Path uploadDir = Paths.get(path).toAbsolutePath().normalize();
         Files.createDirectories(uploadDir);
 
-        // Copy the uploaded file
         Path filePath = uploadDir.resolve(fileName);
+
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, filePath);
         }
@@ -55,16 +55,22 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public InputStream getResourceFile(String path, String fileName) throws FileNotFoundException {
+    public InputStream getResourceFile(String path, String fileName)
+            throws IOException {
 
         Path uploadDir = Paths.get(path).toAbsolutePath().normalize();
         Path filePath = uploadDir.resolve(fileName).normalize();
 
-        // Prevent accessing files outside the upload directory
         if (!filePath.startsWith(uploadDir)) {
-            throw new FileNotFoundException("Invalid file path");
+            throw new FileNotFoundException("Invalid file path!");
         }
 
-        return new FileInputStream(filePath.toFile());
+        try {
+            return Files.newInputStream(filePath);
+        } catch (NoSuchFileException ex) {
+            throw new FileNotFoundException(
+                    "File not found: " + fileName
+            );
+        }
     }
 }
