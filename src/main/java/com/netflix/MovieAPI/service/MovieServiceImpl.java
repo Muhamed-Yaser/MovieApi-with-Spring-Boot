@@ -2,12 +2,17 @@
 package com.netflix.MovieAPI.service;
 
 import com.netflix.MovieAPI.dto.MovieDto;
+import com.netflix.MovieAPI.dto.MoviePageResponse;
 import com.netflix.MovieAPI.entities.Movie;
+import com.netflix.MovieAPI.exceptions.EmptyFileException;
+import com.netflix.MovieAPI.exceptions.MovieNotFoundException;
 import com.netflix.MovieAPI.repositories.MovieRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -28,21 +33,22 @@ public class MovieServiceImpl implements MovieService {
     @Value("${base.url}")
     private String baseUrl;
 
-    public MovieServiceImpl(MovieRepository movieRepository, FileService fileService) {
+    public MovieServiceImpl(
+            MovieRepository movieRepository,
+            FileService fileService) {
+
         this.movieRepository = movieRepository;
         this.fileService = fileService;
     }
 
     @Override
-    public MovieDto addMovie(MovieDto movieDto, MultipartFile file) throws IOException {
+    public MovieDto addMovie(MovieDto movieDto, MultipartFile file)
+            throws IOException, EmptyFileException {
 
-        // 1. Upload the poster
         String uploadedFileName = fileService.uploadFile(path, file);
 
-        // 2. Set the poster filename in DTO
         movieDto.setPoster(uploadedFileName);
 
-        // 3. Map DTO to Movie entity
         Movie movie = new Movie(
                 null,
                 movieDto.getTitle(),
@@ -53,10 +59,8 @@ public class MovieServiceImpl implements MovieService {
                 movieDto.getPoster()
         );
 
-        // 4. Save movie in database
         Movie savedMovie = movieRepository.save(movie);
 
-        // 5. Return the saved movie as DTO
         return convertToDto(savedMovie);
     }
 
@@ -64,8 +68,7 @@ public class MovieServiceImpl implements MovieService {
     public MovieDto getMovie(Integer movieId) {
 
         Movie movie = movieRepository.findById(movieId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new MovieNotFoundException(
                         "Movie not found with id = " + movieId
                 ));
 
@@ -86,27 +89,24 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    public MovieDto updateMovie(Integer movieId, MovieDto movieDto, MultipartFile file)
-            throws IOException {
+    public MovieDto updateMovie(
+            Integer movieId,
+            MovieDto movieDto,
+            MultipartFile file) throws IOException, EmptyFileException {
 
-        // 1. Find existing movie
         Movie existingMovie = movieRepository.findById(movieId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new MovieNotFoundException(
                         "Movie not found with id = " + movieId
                 ));
 
         String fileName = existingMovie.getPoster();
 
-        // 2. Upload new poster if provided
         if (file != null) {
             fileName = fileService.uploadFile(path, file);
         }
 
-        // 3. Set poster filename
         movieDto.setPoster(fileName);
 
-        // 4. Map DTO to Movie entity
         Movie movie = new Movie(
                 existingMovie.getMovieId(),
                 movieDto.getTitle(),
@@ -117,12 +117,12 @@ public class MovieServiceImpl implements MovieService {
                 movieDto.getPoster()
         );
 
-        // 5. Save updated movie
         Movie updatedMovie = movieRepository.save(movie);
 
-        // 6. Delete old poster only after successful save
         if (file != null) {
-            Files.deleteIfExists(Paths.get(path, existingMovie.getPoster()));
+            Files.deleteIfExists(
+                    Paths.get(path, existingMovie.getPoster())
+            );
         }
 
         return convertToDto(updatedMovie);
@@ -131,20 +131,72 @@ public class MovieServiceImpl implements MovieService {
     @Override
     public String deleteMovie(Integer movieId) throws IOException {
 
-        // 1. Find movie
         Movie movie = movieRepository.findById(movieId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new MovieNotFoundException(
                         "Movie not found with id = " + movieId
                 ));
 
-        // 2. Delete movie from database
         movieRepository.delete(movie);
 
-        // 3. Delete associated poster
-        Files.deleteIfExists(Paths.get(path, movie.getPoster()));
+        Files.deleteIfExists(
+                Paths.get(path, movie.getPoster())
+        );
 
         return "Movie deleted with id = " + movieId;
+    }
+
+    // Pagination
+    @Override
+    public MoviePageResponse getAllMoviesWithPagination(
+            Integer pageNumber, Integer pageSize) {
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+        Page<Movie> moviePages = movieRepository.findAll(pageable);
+
+        List<MovieDto> movieDtos = moviePages.getContent()
+                .stream()
+                .map(this::convertToDto)
+                .toList();
+
+        return new MoviePageResponse(
+                movieDtos,
+                pageNumber,
+                pageSize,
+                moviePages.getTotalElements(),
+                moviePages.getTotalPages(),
+                moviePages.isLast()
+        );
+    }
+
+    @Override
+    public MoviePageResponse getAllMoviesWithPaginationAndSorting(
+            Integer pageNumber,
+            Integer pageSize,
+            String sortBy,
+            String dir) {
+
+        Sort sort = dir.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+
+        Page<Movie> moviePages = movieRepository.findAll(pageable);
+
+        List<MovieDto> movieDtos = moviePages.getContent()
+                .stream()
+                .map(this::convertToDto)
+                .toList();
+
+        return new MoviePageResponse(
+                movieDtos,
+                pageNumber,
+                pageSize,
+                moviePages.getTotalElements(),
+                moviePages.getTotalPages(),
+                moviePages.isLast()
+        );
     }
 
     // Convert Movie entity to MovieDto

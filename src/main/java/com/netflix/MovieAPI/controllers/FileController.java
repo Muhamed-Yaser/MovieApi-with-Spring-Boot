@@ -1,5 +1,6 @@
 package com.netflix.MovieAPI.controllers;
 
+import com.netflix.MovieAPI.exceptions.EmptyFileException;
 import com.netflix.MovieAPI.service.FileService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +29,7 @@ public class FileController {
     private String path;
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadFileHandler(@RequestPart MultipartFile file) throws IOException {
+    public ResponseEntity<String> uploadFileHandler(@RequestPart MultipartFile file) throws IOException, EmptyFileException {
         String uploadedFileName = fileService.uploadFile(path, file);
         return ResponseEntity.ok("File uploaded : " + uploadedFileName);
     }
