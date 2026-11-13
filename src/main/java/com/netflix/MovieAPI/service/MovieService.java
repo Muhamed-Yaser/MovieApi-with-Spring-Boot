@@ -1,6 +1,7 @@
 package com.netflix.MovieAPI.service;
 
 import com.netflix.MovieAPI.dto.MovieDto;
+import com.netflix.MovieAPI.dto.MoviePageResponse;
 import com.netflix.MovieAPI.exceptions.EmptyFileException;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,4 +19,9 @@ public interface MovieService {
     MovieDto updateMovie(Integer movieId, MovieDto movieDto, MultipartFile file) throws IOException, EmptyFileException;
 
     String deleteMovie(Integer movieId) throws IOException;
+
+    MoviePageResponse getAllMoviesWithPagination(Integer pageNumber, Integer pageSize);
+
+    MoviePageResponse getAllMoviesWithPaginationAndSorting(Integer pageNumber, Integer pageSize,
+                                                           String sortBy, String dir);
 }
