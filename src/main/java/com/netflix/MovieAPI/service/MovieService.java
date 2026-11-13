@@ -1,3 +1,4 @@
+
 package com.netflix.MovieAPI.service;
 
 import com.netflix.MovieAPI.dto.MovieDto;
@@ -10,18 +11,20 @@ import java.util.List;
 
 public interface MovieService {
 
-    MovieDto addMovie(MovieDto movieDto, MultipartFile file) throws IOException, EmptyFileException;
+    MovieDto addMovie(MovieDto movieDto, MultipartFile file)
+            throws IOException, EmptyFileException;
 
     MovieDto getMovie(Integer movieId);
 
     List<MovieDto> getAllMovies();
 
-    MovieDto updateMovie(Integer movieId, MovieDto movieDto, MultipartFile file) throws IOException, EmptyFileException;
+    MovieDto updateMovie(Integer movieId, MovieDto movieDto, MultipartFile file)
+            throws IOException, EmptyFileException;
 
     String deleteMovie(Integer movieId) throws IOException;
 
     MoviePageResponse getAllMoviesWithPagination(Integer pageNumber, Integer pageSize);
 
-    MoviePageResponse getAllMoviesWithPaginationAndSorting(Integer pageNumber, Integer pageSize,
-                                                           String sortBy, String dir);
+    MoviePageResponse getAllMoviesWithPaginationAndSorting(
+            Integer pageNumber, Integer pageSize, String sortBy, String dir);
 }
