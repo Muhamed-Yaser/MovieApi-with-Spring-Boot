@@ -31,3 +31,10 @@ project:
 
 base:
   url: "http://localhost:8080"
+
+jwt:
+  secret-key: "BF7FD11ACE545745B7BA1AF98B6F156D127BC7BB544BAB6A4FD74E4FC7"
+
+logging:
+  level:
+    org.springframework.security: TRACE
