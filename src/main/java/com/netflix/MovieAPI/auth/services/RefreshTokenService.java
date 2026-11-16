@@ -4,53 +4,88 @@ import com.netflix.MovieAPI.auth.entities.RefreshToken;
 import com.netflix.MovieAPI.auth.entities.User;
 import com.netflix.MovieAPI.auth.repositories.RefreshTokenRepository;
 import com.netflix.MovieAPI.auth.repositories.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
 import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
 
     private final UserRepository userRepository;
-
     private final RefreshTokenRepository refreshTokenRepository;
 
-    public RefreshTokenService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository) {
+    public RefreshTokenService(
+            UserRepository userRepository,
+            RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
     public RefreshToken createRefreshToken(String username) {
+
         User user = userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email : " + username));
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "User not found with email: " + username));
 
-        RefreshToken refreshToken = user.getRefreshToken();
+        String rawToken = UUID.randomUUID().toString();
 
-        if (refreshToken == null) {
-            long refreshTokenValidity = 30 * 100000;
-            refreshToken = RefreshToken.builder()
-                    .refreshToken(UUID.randomUUID().toString())
-                    .expirationTime(Instant.now().plusMillis(refreshTokenValidity))
-                    .user(user)
-                    .build();
+        RefreshToken refreshToken = RefreshToken.builder()
+                .refreshToken(hashToken(rawToken))
+                .expirationTime(Instant.now().plus(7, ChronoUnit.DAYS))
+                .sessionId(UUID.randomUUID().toString())
+                .user(user)
+                .build();
 
-            refreshTokenRepository.save(refreshToken);
-        }
+        refreshTokenRepository.save(refreshToken);
+
+        refreshToken.setRawToken(rawToken);
 
         return refreshToken;
     }
 
-    public RefreshToken verifyRefreshToken(String refreshToken) {
-        RefreshToken refToken = refreshTokenRepository.findByRefreshToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found!"));
+    @Transactional
+    public RefreshToken rotateRefreshToken(String rawToken) {
 
-        if (refToken.getExpirationTime().compareTo(Instant.now()) < 0) {
-            refreshTokenRepository.delete(refToken);
-            throw new RuntimeException("Refresh Token expired");
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByRefreshToken(hashToken(rawToken))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Refresh token is invalid"));
+
+        if (!refreshToken.getExpirationTime().isAfter(Instant.now())) {
+            refreshTokenRepository.delete(refreshToken);
+            throw new IllegalArgumentException("Refresh token expired");
         }
 
-        return refToken;
+        String newRawToken = UUID.randomUUID().toString();
+
+        refreshToken.setRefreshToken(hashToken(newRawToken));
+        refreshToken.setExpirationTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        refreshToken.setRawToken(newRawToken);
+
+        return refreshTokenRepository.save(refreshToken);
+    }
+
+    public void logout(String sessionId) {
+
+        refreshTokenRepository.findBySessionId(sessionId)
+                .ifPresent(refreshTokenRepository::delete);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
     }
 }

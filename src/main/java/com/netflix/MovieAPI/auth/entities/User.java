@@ -12,6 +12,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -43,11 +44,11 @@ public class User implements UserDetails {
     @Size(min = 8, message = "The password must have at least 8 characters")
     private String password;
 
-    @OneToOne(mappedBy = "user")
-    private RefreshToken refreshToken;
+    @OneToMany(mappedBy = "user")
+    private List<RefreshToken> refreshTokens = new ArrayList<>();
 
-    //@OneToOne(mappedBy = "user")
-    //private ForgotPassword forgotPassword;
+    @OneToOne(mappedBy = "user")
+    private ForgotPassword forgotPassword;
 
     @Enumerated(EnumType.STRING)
     private UserRole role;

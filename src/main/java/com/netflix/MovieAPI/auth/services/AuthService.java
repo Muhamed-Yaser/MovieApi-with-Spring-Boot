@@ -1,4 +1,3 @@
-
 package com.netflix.MovieAPI.auth.services;
 
 import com.netflix.MovieAPI.auth.entities.User;
@@ -13,6 +12,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,21 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
 
     public AuthResponse register(RegisterRequest registerRequest) {
+
+        if (userRepository.existsByEmail(registerRequest.getEmail())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Email already exists"
+            );
+        }
+
+        if (userRepository.existsByUsername(registerRequest.getUsername())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Username already exists"
+            );
+        }
+
         var user = User.builder()
                 .name(registerRequest.getName())
                 .email(registerRequest.getEmail())
@@ -34,18 +50,25 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
-        var accessToken = jwtService.generateToken(savedUser);
-        var refreshToken = refreshTokenService.createRefreshToken(savedUser.getEmail());
+
+        var refreshToken =
+                refreshTokenService.createRefreshToken(savedUser.getEmail());
+
+        var accessToken = jwtService.generateToken(
+                savedUser,
+                refreshToken.getSessionId()
+        );
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken.getRefreshToken())
+                .refreshToken(refreshToken.getRawToken())
                 .name(savedUser.getName())
                 .email(savedUser.getEmail())
                 .build();
     }
 
     public AuthResponse login(LoginRequest loginRequest) {
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getEmail(),
@@ -53,13 +76,21 @@ public class AuthService {
                 )
         );
 
-        var user = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow(() -> new UsernameNotFoundException("User not found!"));
-        var accessToken = jwtService.generateToken(user);
-        var refreshToken = refreshTokenService.createRefreshToken(loginRequest.getEmail());
+        var user = userRepository.findByEmail(loginRequest.getEmail())
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found!"));
+
+        var refreshToken =
+                refreshTokenService.createRefreshToken(user.getEmail());
+
+        var accessToken = jwtService.generateToken(
+                user,
+                refreshToken.getSessionId()
+        );
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken.getRefreshToken())
+                .refreshToken(refreshToken.getRawToken())
                 .name(user.getName())
                 .email(user.getEmail())
                 .build();

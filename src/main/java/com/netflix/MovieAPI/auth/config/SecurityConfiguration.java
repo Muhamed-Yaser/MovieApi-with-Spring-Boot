@@ -1,4 +1,3 @@
-
 package com.netflix.MovieAPI.auth.config;
 
 import com.netflix.MovieAPI.auth.services.AuthFilterService;
@@ -24,18 +23,29 @@ public class SecurityConfiguration {
     private final AuthenticationProvider authenticationProvider;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+            throws Exception {
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**", "/forgotPassword/**", "/file/**")
+                        .requestMatchers(
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh",
+                                "/forgotPassword/**",
+                                "/file/**"
+                        )
                         .permitAll()
-                        .anyRequest()
-                        .authenticated())
+                        .anyRequest().authenticated()
+                )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider)
-                .addFilterBefore(authFilterService, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(
+                        authFilterService,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }

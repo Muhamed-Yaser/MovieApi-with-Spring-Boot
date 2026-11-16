@@ -1,7 +1,6 @@
 package com.netflix.MovieAPI.auth.entities;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.Instant;
@@ -19,12 +18,18 @@ public class RefreshToken {
     private Integer tokenId;
 
     @Column(nullable = false, length = 500)
-    @NotBlank(message = "Please enter the refresh token value!")
     private String refreshToken;
 
     @Column(nullable = false)
     private Instant expirationTime;
 
-    @OneToOne
+    @Column(nullable = false, unique = true)
+    private String sessionId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Transient
+    private String rawToken;
 }
